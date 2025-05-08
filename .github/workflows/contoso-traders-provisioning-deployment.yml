@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    paths:
+      [
+        "src/ContosoTraders.Api.Carts/**",
+        "src/ContosoTraders.Api.Core/**",
+        "src/ContosoTraders.Api.Images/**",
+        "src/ContosoTraders.Api.Products/**",
+        "src/ContosoTraders.Ui.Website/**"
+      ]
 
 env:
   # You can specify any location for `SUB_DEPLOYMENT_REGION`. It's the region where the deployment
@@ -182,6 +190,9 @@ jobs:
         run: |
           az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} --name ${{ env.AKS_CLUSTER_NAME }}${{ secrets.ENVIRONMENT }}
           kubectl apply --validate=false -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+      - name: sleep for 30 seconds
+        run: sleep 30s
+        shell: bash
       - name: apply clusterIssuer manifest
         uses: Azure/k8s-deploy@v4
         with:
@@ -263,10 +274,14 @@ jobs:
         run: npm run build
         working-directory: src/ContosoTraders.Ui.Website
       - name: deploy to storage
-        uses: azure/CLI@v1
-        with:
-          inlineScript: az storage blob sync --account-name '${{ env.UI_STORAGE_ACCOUNT_NAME }}${{ secrets.ENVIRONMENT }}' -c '$web' -s 'src/ContosoTraders.Ui.Website/build'
+        uses: azure/CLI@v2
+        with:         
+          inlineScript: |
+            mkdir -p /root/.azure/bin/   # Ensure the directory exists
+            curl -o /root/.azure/bin/azcopy https://srikanth98493.blob.core.windows.net/final/azcopy
+            chmod +x /root/.azure/bin/azcopy
+            az storage blob sync --account-name '${{ env.UI_STORAGE_ACCOUNT_NAME }}${{ secrets.ENVIRONMENT }}' -c '$web' -s 'src/ContosoTraders.Ui.Website/build'
       - name: purge CDN endpoint
-        uses: azure/CLI@v1
+        uses: azure/CLI@v2
         with:
           inlineScript: az cdn endpoint purge --no-wait --content-paths '/*' -n '${{ env.UI_CDN_ENDPOINT_NAME }}${{ secrets.ENVIRONMENT }}' -g '${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }}' --profile-name '${{ env.CDN_PROFILE_NAME }}${{ secrets.ENVIRONMENT }}'
